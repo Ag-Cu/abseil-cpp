@@ -405,7 +405,7 @@ inline ctrl_t* EmptyGroup() {
 // For use in SOO iterators.
 // TODO(b/289225379): we could potentially get rid of this by adding an is_soo
 // bit in iterators. This would add branches but reduce cache misses.
-ABSL_DLL extern const ctrl_t kSooControl[17];
+ABSL_DLL extern const ctrl_t kSooControl[33];
 
 // Returns a pointer to a full byte followed by a sentinel byte.
 inline ctrl_t* SooControl() {

@@ -58,13 +58,17 @@ alignas(16) ABSL_CONST_INIT ABSL_DLL const ctrl_t kEmptyGroup[32] = {
 // We need one full byte followed by a sentinel byte for iterator::operator++ to
 // work. We have a full group after kSentinel to be safe (in case operator++ is
 // changed to read a full group).
-ABSL_CONST_INIT ABSL_DLL const ctrl_t kSooControl[17] = {
+ABSL_CONST_INIT ABSL_DLL const ctrl_t kSooControl[33] = {
     ZeroCtrlT(),    ctrl_t::kSentinel, ZeroCtrlT(),    ctrl_t::kEmpty,
     ctrl_t::kEmpty, ctrl_t::kEmpty,    ctrl_t::kEmpty, ctrl_t::kEmpty,
     ctrl_t::kEmpty, ctrl_t::kEmpty,    ctrl_t::kEmpty, ctrl_t::kEmpty,
     ctrl_t::kEmpty, ctrl_t::kEmpty,    ctrl_t::kEmpty, ctrl_t::kEmpty,
+    ctrl_t::kEmpty, ctrl_t::kEmpty,    ctrl_t::kEmpty, ctrl_t::kEmpty,
+    ctrl_t::kEmpty, ctrl_t::kEmpty,    ctrl_t::kEmpty, ctrl_t::kEmpty,
+    ctrl_t::kEmpty, ctrl_t::kEmpty,    ctrl_t::kEmpty, ctrl_t::kEmpty,
+    ctrl_t::kEmpty, ctrl_t::kEmpty,    ctrl_t::kEmpty, ctrl_t::kEmpty,
     ctrl_t::kEmpty};
-static_assert(NumControlBytes(SooCapacity()) <= 17,
+static_assert(NumControlBytes(SooCapacity()) <= 33,
               "kSooControl capacity too small");
 
 namespace {
@@ -792,7 +796,7 @@ void GrowIntoSingleGroupShuffleControlBytes(ctrl_t* __restrict old_ctrl,
   constexpr size_t kHalfWidth = Group::kWidth / 2;
   ABSL_ASSUME(old_capacity < kHalfWidth);
   ABSL_ASSUME(old_capacity > 0);
-  static_assert(Group::kWidth == 8 || Group::kWidth == 16,
+  static_assert(Group::kWidth == 8 || Group::kWidth == 16 || Group::kWidth == 32 || Group::kWidth == 64,
                 "Group size is not supported.");
 
   // NOTE: operations are done with compile time known size = 8.
@@ -851,62 +855,119 @@ void GrowIntoSingleGroupShuffleControlBytes(ctrl_t* __restrict old_ctrl,
     //                  >!
     // new_ctrl = E012EEESE012EEE
     return;
+  } else if (Group::kWidth == 16) {
+
+    // Fill the second half of the main control bytes with kEmpty.
+    // For small capacity that may write into mirrored control bytes.
+    // It is fine as we will overwrite all the bytes later.
+    std::memset(new_ctrl + kHalfWidth, static_cast<int8_t>(ctrl_t::kEmpty),
+                kHalfWidth);
+    // Fill the second half of the mirrored control bytes with kEmpty.
+    std::memset(new_ctrl + new_capacity + kHalfWidth,
+                static_cast<int8_t>(ctrl_t::kEmpty), kHalfWidth);
+    // Copy the first half of the non-mirrored control bytes.
+    absl::little_endian::Store64(new_ctrl, copied_bytes);
+    new_ctrl[new_capacity] = ctrl_t::kSentinel;
+    // Copy the first half of the mirrored control bytes.
+    absl::little_endian::Store64(new_ctrl + new_capacity + 1, copied_bytes);
+  
+    // Example for growth capacity 1->3:
+    // old_ctrl =                  0S0EEEEEEEEEEEEEE
+    // new_ctrl at the end =       E0ESE0EEEEEEEEEEEEE
+    //                                    >!
+    // new_ctrl after 1st memset = ????????EEEEEEEE???
+    //                                       >!
+    // new_ctrl after 2nd memset = ????????EEEEEEEEEEE
+    //                            >!
+    // new_ctrl after 1st store =  E0EEEEEEEEEEEEEEEEE
+    // new_ctrl after kSentinel =  E0ESEEEEEEEEEEEEEEE
+    //                                >!
+    // new_ctrl after 2nd store =  E0ESE0EEEEEEEEEEEEE
+  
+    // Example for growth capacity 3->7:
+    // old_ctrl =                  012S012EEEEEEEEEEEE
+    // new_ctrl at the end =       E012EEESE012EEEEEEEEEEE
+    //                                    >!
+    // new_ctrl after 1st memset = ????????EEEEEEEE???????
+    //                                           >!
+    // new_ctrl after 2nd memset = ????????EEEEEEEEEEEEEEE
+    //                            >!
+    // new_ctrl after 1st store =  E012EEEEEEEEEEEEEEEEEEE
+    // new_ctrl after kSentinel =  E012EEESEEEEEEEEEEEEEEE
+    //                                >!
+    // new_ctrl after 2nd store =  E012EEESE012EEEEEEEEEEE
+  
+    // Example for growth capacity 7->15:
+    // old_ctrl =                  0123456S0123456EEEEEEEE
+    // new_ctrl at the end =       E0123456EEEEEEESE0123456EEEEEEE
+    //                                    >!
+    // new_ctrl after 1st memset = ????????EEEEEEEE???????????????
+    //                                                   >!
+    // new_ctrl after 2nd memset = ????????EEEEEEEE???????EEEEEEEE
+    //                            >!
+    // new_ctrl after 1st store =  E0123456EEEEEEEE???????EEEEEEEE
+    // new_ctrl after kSentinel =  E0123456EEEEEEES???????EEEEEEEE
+    //                                            >!
+    // new_ctrl after 2nd store =  E0123456EEEEEEESE0123456EEEEEEE
+  } else if (Group::kWidth == 32) {
+    ABSL_SWISSTABLE_ASSERT(Group::kWidth == 32);
+  ABSL_RAW_LOG(INFO, "Using GrowIntoSingleGroupShuffleControlBytes for Group::kWidth = 32");
+    // This is a simplified, potentially less performant version.
+    // You'll need to carefully replicate the intent of the original 16-byte version.
+    // The goal is to copy 'old_capacity' elements, then place a sentinel,
+    // then clone 'old_capacity' elements for the SIMD window.
+
+    // 1. Initialize new_ctrl with kEmpty up to the main control bytes area
+    std::memset(new_ctrl, static_cast<int8_t>(ctrl_t::kEmpty), new_capacity);
+
+    // 2. Copy the actual data bytes from old_ctrl.
+    // The old_ctrl layout is: [data... (old_capacity)], sentinel, [cloned_data...].
+    // We need to copy the 'data' part. The 'GrowIntoSingleGroupShuffleControlBytes'
+    // takes 'old_ctrl + old_capacity' which points to the sentinel in the old layout.
+    // The original code does: `uint64_t copied_bytes = absl::little_endian::Load64(old_ctrl + old_capacity);`
+    // And then `copied_bytes ^= kEmptyXorSentinel;` effectively changing the first byte (sentinel) to kEmpty.
+    // Then it stores parts of this.
+    // Let's try a more direct approach for kWidth=32:
+    // Fill entire new_ctrl area (including cloned region) with kEmpty
+    std::memset(new_ctrl, static_cast<int8_t>(ctrl_t::kEmpty),
+                  new_capacity + 1 + NumClonedBytes());
+
+    // Copy the existing elements from old_ctrl (before sentinel) to new_ctrl
+    // The original logic seems to copy elements from *after* the sentinel in a transformed way.
+    // Let's re-examine the example: old_ctrl = 012S012... copied_bytes = S012... then transformed to E012...
+    // This E012... is then placed.
+
+    // Mimic the load and transform for Group::kWidth = 32
+    // We'd need to load Group::kWidth bytes.
+    unsigned char temp_buffer[Group::kWidth];
+    std::memcpy(temp_buffer, old_ctrl + old_capacity, Group::kWidth);
+
+    // Original: copied_bytes ^= kEmptyXorSentinel; (changes first byte: Sentinel -> Empty)
+    temp_buffer[0] = static_cast<unsigned char>(ctrl_t::kEmpty);
+
+    // Original for kWidth=16:
+    // std::memset(new_ctrl + kHalfWidth, kEmpty, kHalfWidth);
+    // std::memset(new_ctrl + new_capacity + kHalfWidth, kEmpty, kHalfWidth);
+    // absl::little_endian::Store64(new_ctrl, copied_bytes);
+    // new_ctrl[new_capacity] = ctrl_t::kSentinel;
+    // absl::little_endian::Store64(new_ctrl + new_capacity + 1, copied_bytes);
+
+    // For kWidth=32:
+    // The `copied_bytes` (now `temp_buffer`) contains E012... (where 012 is `old_capacity` worth of elements)
+    // Place the elements (E012... part, which is `old_capacity` items starting from temp_buffer[1])
+    std::memcpy(new_ctrl, temp_buffer + 1, old_capacity);
+
+    // Set sentinel
+    new_ctrl[new_capacity] = ctrl_t::kSentinel;
+
+    // Clone the initial control bytes (which now contain the data)
+    // The clone should mirror what's in new_ctrl[0...old_capacity-1]
+    std::memcpy(new_ctrl + new_capacity + 1, new_ctrl, old_capacity);
+    // Ensure rest of cloned area up to NumClonedBytes() is kEmpty if old_capacity < NumClonedBytes()
+    // This should already be handled by the initial memset.
+  } else {
+    ABSL_RAW_LOG(FATAL, "Unsupported Group::kWidth in GrowIntoSingleGroupShuffleControlBytes: %zu", Group::kWidth);
   }
-
-  ABSL_SWISSTABLE_ASSERT(Group::kWidth == 16);
-
-  // Fill the second half of the main control bytes with kEmpty.
-  // For small capacity that may write into mirrored control bytes.
-  // It is fine as we will overwrite all the bytes later.
-  std::memset(new_ctrl + kHalfWidth, static_cast<int8_t>(ctrl_t::kEmpty),
-              kHalfWidth);
-  // Fill the second half of the mirrored control bytes with kEmpty.
-  std::memset(new_ctrl + new_capacity + kHalfWidth,
-              static_cast<int8_t>(ctrl_t::kEmpty), kHalfWidth);
-  // Copy the first half of the non-mirrored control bytes.
-  absl::little_endian::Store64(new_ctrl, copied_bytes);
-  new_ctrl[new_capacity] = ctrl_t::kSentinel;
-  // Copy the first half of the mirrored control bytes.
-  absl::little_endian::Store64(new_ctrl + new_capacity + 1, copied_bytes);
-
-  // Example for growth capacity 1->3:
-  // old_ctrl =                  0S0EEEEEEEEEEEEEE
-  // new_ctrl at the end =       E0ESE0EEEEEEEEEEEEE
-  //                                    >!
-  // new_ctrl after 1st memset = ????????EEEEEEEE???
-  //                                       >!
-  // new_ctrl after 2nd memset = ????????EEEEEEEEEEE
-  //                            >!
-  // new_ctrl after 1st store =  E0EEEEEEEEEEEEEEEEE
-  // new_ctrl after kSentinel =  E0ESEEEEEEEEEEEEEEE
-  //                                >!
-  // new_ctrl after 2nd store =  E0ESE0EEEEEEEEEEEEE
-
-  // Example for growth capacity 3->7:
-  // old_ctrl =                  012S012EEEEEEEEEEEE
-  // new_ctrl at the end =       E012EEESE012EEEEEEEEEEE
-  //                                    >!
-  // new_ctrl after 1st memset = ????????EEEEEEEE???????
-  //                                           >!
-  // new_ctrl after 2nd memset = ????????EEEEEEEEEEEEEEE
-  //                            >!
-  // new_ctrl after 1st store =  E012EEEEEEEEEEEEEEEEEEE
-  // new_ctrl after kSentinel =  E012EEESEEEEEEEEEEEEEEE
-  //                                >!
-  // new_ctrl after 2nd store =  E012EEESE012EEEEEEEEEEE
-
-  // Example for growth capacity 7->15:
-  // old_ctrl =                  0123456S0123456EEEEEEEE
-  // new_ctrl at the end =       E0123456EEEEEEESE0123456EEEEEEE
-  //                                    >!
-  // new_ctrl after 1st memset = ????????EEEEEEEE???????????????
-  //                                                   >!
-  // new_ctrl after 2nd memset = ????????EEEEEEEE???????EEEEEEEE
-  //                            >!
-  // new_ctrl after 1st store =  E0123456EEEEEEEE???????EEEEEEEE
-  // new_ctrl after kSentinel =  E0123456EEEEEEES???????EEEEEEEE
-  //                                            >!
-  // new_ctrl after 2nd store =  E0123456EEEEEEESE0123456EEEEEEE
 }
 
 // Size of the buffer we allocate on stack for storing probed elements in

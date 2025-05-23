@@ -821,6 +821,17 @@ static_assert(ABSL_INTERNAL_INLINE_NAMESPACE_STR[0] != 'h' ||
 #define ABSL_INTERNAL_HAVE_ARM_NEON 1
 #endif
 
+// ABSL_INTERNAL_HAVE_RISCV_RVV is used for compile-time detection of RVV (RISCV
+// SIMD).
+//
+
+#ifdef ABSL_INTERNAL_HAVE_RISCV_RVV
+#error ABSL_INTERNAL_HAVE_RISCV_RVV cannot be directly set
+#elif defined(__riscv_vector) && defined(__riscv_v_fixed_vlen)
+#define ABSL_INTERNAL_HAVE_RISCV_RVV 1
+#define ABSL_INTERNAL_RVV_BITS __riscv_v_fixed_vlen
+#endif
+
 // ABSL_HAVE_CONSTANT_EVALUATED is used for compile-time detection of
 // constant evaluation support through `absl::is_constant_evaluated`.
 #ifdef ABSL_HAVE_CONSTANT_EVALUATED

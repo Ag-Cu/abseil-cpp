@@ -41,6 +41,10 @@
 #include <arm_neon.h>
 #endif
 
+#ifdef ABSL_INTERNAL_HAVE_RISCV_RVV
+#include <riscv_vector.h>
+#endif
+
 #include "absl/base/optimization.h"
 #include "absl/numeric/bits.h"
 #include "absl/base/internal/endian.h"
@@ -432,6 +436,119 @@ struct GroupAArch64Impl {
 };
 #endif  // ABSL_INTERNAL_HAVE_ARM_NEON && ABSL_IS_LITTLE_ENDIAN
 
+#ifdef ABSL_INTERNAL_HAVE_RISCV_RVV
+
+template <size_t NumBits>
+using BitMaskScalarType =
+    std::conditional_t<NumBits == 16, uint16_t,
+    std::conditional_t<NumBits == 32, uint32_t,
+    std::conditional_t<NumBits == 64, uint64_t,
+    void>>>; // `void` indicates an unsupported/unexpected size
+
+struct GroupRvvImpl {
+  static constexpr size_t kWidth = ABSL_INTERNAL_RVV_BITS / 8;
+  static_assert(kWidth == 32);
+  using UnderlyingMaskScalarType = BitMaskScalarType<kWidth>;
+  static_assert(!std::is_same_v<UnderlyingMaskScalarType, void>,
+               "Unsupported kWidth for RVV mask scalar type");
+  using BitMaskType = BitMask<UnderlyingMaskScalarType, kWidth>;
+  using NonIterableBitMaskType = NonIterableBitMask<UnderlyingMaskScalarType, kWidth>;
+
+ private:
+  // Helper to extract a kWidth-bit scalar mask from a vbool8_t predicate mask.
+  // static inline uint16_t ExtractMaskFromPredicate(vbool8_t predicate_mask) {
+  //   return __riscv_vmv_x_s_u16m1_u16(__riscv_vreinterpret_u16m1(predicate_mask));
+  // }
+
+  static inline UnderlyingMaskScalarType ExtractMaskFromPredicate(vbool8_t predicate_b8) {
+    if constexpr (std::is_same_v<UnderlyingMaskScalarType, uint16_t>) {
+        return __riscv_vmv_x_s_u16m1_u16(__riscv_vreinterpret_u16m1(predicate_b8));
+    } else if constexpr (std::is_same_v<UnderlyingMaskScalarType, uint32_t>) {
+        return __riscv_vmv_x_s_u32m1_u32(__riscv_vreinterpret_u32m1(predicate_b8));
+    } else if constexpr (std::is_same_v<UnderlyingMaskScalarType, uint64_t>) {
+        return __riscv_vmv_x_s_u64m1_u64(__riscv_vreinterpret_u64m1(predicate_b8));
+    } else {
+        // This path should ideally be prevented by the static_assert on UnderlyingMaskScalarType
+        ABSL_SWISSTABLE_ASSERT(false && "Unhandled UnderlyingMaskScalarType in ExtractMaskFromPredicate");
+        return {};
+    }
+}
+
+ public:
+  explicit GroupRvvImpl(const ctrl_t* pos) {
+    size_t vl = __riscv_vsetvlmax_e8m1();
+    ABSL_SWISSTABLE_ASSERT(vl == kWidth && "RVV VL not configured as expected for GroupRvvImpl");
+    ctrl_ = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(pos), vl);
+  }
+
+  BitMaskType Match(h2_t hash) const {
+    size_t vl = __riscv_vsetvlmax_e8m1();
+    vuint8m1_t v_hash_broadcast = __riscv_vmv_v_x_u8m1(static_cast<uint8_t>(hash), vl);
+    vbool8_t match_predicate = __riscv_vmseq_vv_u8m1_b8(ctrl_, v_hash_broadcast, vl);
+    return BitMaskType(ExtractMaskFromPredicate(match_predicate));
+  }
+
+  NonIterableBitMaskType MaskEmpty() const {
+    size_t vl = __riscv_vsetvlmax_e8m1();
+    vuint8m1_t v_empty_val = __riscv_vmv_v_x_u8m1(static_cast<uint8_t>(ctrl_t::kEmpty), vl);
+    vbool8_t empty_predicate = __riscv_vmseq_vv_u8m1_b8(ctrl_, v_empty_val, vl);
+    return NonIterableBitMaskType(ExtractMaskFromPredicate(empty_predicate));
+  }
+
+  BitMaskType MaskFull() const {
+    size_t vl = __riscv_vsetvlmax_e8m1();
+    vint8m1_t v_ctrl_signed = __riscv_vreinterpret_v_u8m1_i8m1(ctrl_);
+    vbool8_t msb_is_1_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, 0, vl);
+    uint16_t msb_is_1_mask = ExtractMaskFromPredicate(msb_is_1_predicate);
+    return BitMaskType(msb_is_1_mask ^ 0xFFFF);
+  }
+
+  BitMaskType MaskNonFull() const {
+    size_t vl = __riscv_vsetvlmax_e8m1();
+    vint8m1_t v_ctrl_signed = __riscv_vreinterpret_v_u8m1_i8m1(ctrl_);
+    vbool8_t msb_is_1_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, 0, vl);
+    return BitMaskType(ExtractMaskFromPredicate(msb_is_1_predicate));
+  }
+
+  NonIterableBitMaskType MaskEmptyOrDeleted() const {
+    size_t vl = __riscv_vsetvlmax_e8m1();
+    vint8m1_t v_ctrl_signed = __riscv_vreinterpret_v_u8m1_i8m1(ctrl_);
+    vbool8_t e_or_d_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, static_cast<int8_t>(ctrl_t::kSentinel), vl);
+    return NonIterableBitMaskType(ExtractMaskFromPredicate(e_or_d_predicate));
+  }
+
+  uint32_t CountLeadingEmptyOrDeleted() const {
+    size_t vl = __riscv_vsetvlmax_e8m1();
+    vint8m1_t v_ctrl_signed = __riscv_vreinterpret_v_u8m1_i8m1(ctrl_);
+    vbool8_t e_or_d_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, static_cast<int8_t>(ctrl_t::kSentinel), vl);
+    // e_or_d_predicate has bit `i` set if ctrl[i] is Empty or Deleted.
+    UnderlyingMaskScalarType mask_val = ExtractMaskFromPredicate(e_or_d_predicate);
+    // SSE2 version uses: TrailingZeros(mask + 1).
+    // If mask_val has 1s for EorD slots (e.g., 0b...00111 for 3 leading EorD),
+    // mask_val + 1 would be (e.g., 0b...01000).
+    // container_internal::TrailingZeros (which is countr_zero) of this gives 3.
+    return container_internal::TrailingZeros(mask_val + 1);
+  }
+
+  void ConvertSpecialToEmptyAndFullToDeleted(ctrl_t* dst) const {
+    size_t vl = __riscv_vsetvlmax_e8m1();
+
+    vint8m1_t v_ctrl_signed = __riscv_vreinterpret_v_u8m1_i8m1(ctrl_);
+    vbool8_t special_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, 0, vl); // True if ctrl < 0
+    vuint8m1_t v_msbs = __riscv_vmv_v_x_u8m1(0x80, vl);
+    vuint8m1_t v_x126 = __riscv_vmv_v_x_u8m1(0xFE, vl);
+    // Create a mask where bits are 0xFF if special, and 0xFE if not special.
+    vuint8m1_t res = __riscv_vmerge_vvm_u8m1(v_x126, v_msbs, special_predicate, vl);
+
+    __riscv_vse8_v_u8m1(reinterpret_cast<uint8_t*>(dst), res, vl);
+  }
+
+ private:
+  typedef vuint8m1_t fixed_vuint8m1_t __attribute__((riscv_rvv_vector_bits(ABSL_INTERNAL_RVV_BITS)));
+  fixed_vuint8m1_t  ctrl_; // RVV vector type to hold 16 control bytes
+};
+#endif // ABSL_INTERNAL_HAVE_RISCV_RVV
+
 struct GroupPortableImpl {
   static constexpr size_t kWidth = 8;
   using BitMaskType = BitMask<uint64_t, kWidth, /*Shift=*/3,
@@ -513,6 +630,13 @@ using Group = GroupAArch64Impl;
 // such as x86 since they have much lower GPR <-> vector register transfer
 // latency and 16-wide Groups.
 using GroupFullEmptyOrDeleted = GroupPortableImpl;
+#elif defined(ABSL_INTERNAL_HAVE_RISCV_RVV)
+// Add this condition
+using Group = GroupRvvImpl;
+// For RVV, GroupRvvImpl should be efficient enough for all operations.
+// If certain RVV operations for Full/EmptyOrDeleted masks prove slower than portable,
+// this could be GroupPortableImpl, but start with full RVV.
+using GroupFullEmptyOrDeleted = GroupRvvImpl;
 #else
 using Group = GroupPortableImpl;
 using GroupFullEmptyOrDeleted = GroupPortableImpl;
