@@ -855,58 +855,58 @@ void GrowIntoSingleGroupShuffleControlBytes(ctrl_t* __restrict old_ctrl,
 
   ABSL_SWISSTABLE_ASSERT(Group::kWidth == 16);
 
-  // Fill the second half of the main control bytes with kEmpty.
-  // For small capacity that may write into mirrored control bytes.
-  // It is fine as we will overwrite all the bytes later.
-  std::memset(new_ctrl + kHalfWidth, static_cast<int8_t>(ctrl_t::kEmpty),
-              kHalfWidth);
-  // Fill the second half of the mirrored control bytes with kEmpty.
-  std::memset(new_ctrl + new_capacity + kHalfWidth,
-              static_cast<int8_t>(ctrl_t::kEmpty), kHalfWidth);
-  // Copy the first half of the non-mirrored control bytes.
-  absl::little_endian::Store64(new_ctrl, copied_bytes);
-  new_ctrl[new_capacity] = ctrl_t::kSentinel;
-  // Copy the first half of the mirrored control bytes.
-  absl::little_endian::Store64(new_ctrl + new_capacity + 1, copied_bytes);
-
-  // Example for growth capacity 1->3:
-  // old_ctrl =                  0S0EEEEEEEEEEEEEE
-  // new_ctrl at the end =       E0ESE0EEEEEEEEEEEEE
-  //                                    >!
-  // new_ctrl after 1st memset = ????????EEEEEEEE???
-  //                                       >!
-  // new_ctrl after 2nd memset = ????????EEEEEEEEEEE
-  //                            >!
-  // new_ctrl after 1st store =  E0EEEEEEEEEEEEEEEEE
-  // new_ctrl after kSentinel =  E0ESEEEEEEEEEEEEEEE
-  //                                >!
-  // new_ctrl after 2nd store =  E0ESE0EEEEEEEEEEEEE
-
-  // Example for growth capacity 3->7:
-  // old_ctrl =                  012S012EEEEEEEEEEEE
-  // new_ctrl at the end =       E012EEESE012EEEEEEEEEEE
-  //                                    >!
-  // new_ctrl after 1st memset = ????????EEEEEEEE???????
-  //                                           >!
-  // new_ctrl after 2nd memset = ????????EEEEEEEEEEEEEEE
-  //                            >!
-  // new_ctrl after 1st store =  E012EEEEEEEEEEEEEEEEEEE
-  // new_ctrl after kSentinel =  E012EEESEEEEEEEEEEEEEEE
-  //                                >!
-  // new_ctrl after 2nd store =  E012EEESE012EEEEEEEEEEE
-
-  // Example for growth capacity 7->15:
-  // old_ctrl =                  0123456S0123456EEEEEEEE
-  // new_ctrl at the end =       E0123456EEEEEEESE0123456EEEEEEE
-  //                                    >!
-  // new_ctrl after 1st memset = ????????EEEEEEEE???????????????
-  //                                                   >!
-  // new_ctrl after 2nd memset = ????????EEEEEEEE???????EEEEEEEE
-  //                            >!
-  // new_ctrl after 1st store =  E0123456EEEEEEEE???????EEEEEEEE
-  // new_ctrl after kSentinel =  E0123456EEEEEEES???????EEEEEEEE
-  //                                            >!
-  // new_ctrl after 2nd store =  E0123456EEEEEEESE0123456EEEEEEE
+    // Fill the second half of the main control bytes with kEmpty.
+    // For small capacity that may write into mirrored control bytes.
+    // It is fine as we will overwrite all the bytes later.
+    std::memset(new_ctrl + kHalfWidth, static_cast<int8_t>(ctrl_t::kEmpty),
+                kHalfWidth);
+    // Fill the second half of the mirrored control bytes with kEmpty.
+    std::memset(new_ctrl + new_capacity + kHalfWidth,
+                static_cast<int8_t>(ctrl_t::kEmpty), kHalfWidth);
+    // Copy the first half of the non-mirrored control bytes.
+    absl::little_endian::Store64(new_ctrl, copied_bytes);
+    new_ctrl[new_capacity] = ctrl_t::kSentinel;
+    // Copy the first half of the mirrored control bytes.
+    absl::little_endian::Store64(new_ctrl + new_capacity + 1, copied_bytes);
+  
+    // Example for growth capacity 1->3:
+    // old_ctrl =                  0S0EEEEEEEEEEEEEE
+    // new_ctrl at the end =       E0ESE0EEEEEEEEEEEEE
+    //                                    >!
+    // new_ctrl after 1st memset = ????????EEEEEEEE???
+    //                                       >!
+    // new_ctrl after 2nd memset = ????????EEEEEEEEEEE
+    //                            >!
+    // new_ctrl after 1st store =  E0EEEEEEEEEEEEEEEEE
+    // new_ctrl after kSentinel =  E0ESEEEEEEEEEEEEEEE
+    //                                >!
+    // new_ctrl after 2nd store =  E0ESE0EEEEEEEEEEEEE
+  
+    // Example for growth capacity 3->7:
+    // old_ctrl =                  012S012EEEEEEEEEEEE
+    // new_ctrl at the end =       E012EEESE012EEEEEEEEEEE
+    //                                    >!
+    // new_ctrl after 1st memset = ????????EEEEEEEE???????
+    //                                           >!
+    // new_ctrl after 2nd memset = ????????EEEEEEEEEEEEEEE
+    //                            >!
+    // new_ctrl after 1st store =  E012EEEEEEEEEEEEEEEEEEE
+    // new_ctrl after kSentinel =  E012EEESEEEEEEEEEEEEEEE
+    //                                >!
+    // new_ctrl after 2nd store =  E012EEESE012EEEEEEEEEEE
+  
+    // Example for growth capacity 7->15:
+    // old_ctrl =                  0123456S0123456EEEEEEEE
+    // new_ctrl at the end =       E0123456EEEEEEESE0123456EEEEEEE
+    //                                    >!
+    // new_ctrl after 1st memset = ????????EEEEEEEE???????????????
+    //                                                   >!
+    // new_ctrl after 2nd memset = ????????EEEEEEEE???????EEEEEEEE
+    //                            >!
+    // new_ctrl after 1st store =  E0123456EEEEEEEE???????EEEEEEEE
+    // new_ctrl after kSentinel =  E0123456EEEEEEES???????EEEEEEEE
+    //                                            >!
+    // new_ctrl after 2nd store =  E0123456EEEEEEESE0123456EEEEEEE
 }
 
 // Size of the buffer we allocate on stack for storing probed elements in
