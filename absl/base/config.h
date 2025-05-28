@@ -821,6 +821,12 @@ static_assert(ABSL_INTERNAL_INLINE_NAMESPACE_STR[0] != 'h' ||
 #define ABSL_INTERNAL_HAVE_ARM_NEON 1
 #endif
 
+#ifdef ABSL_INTERNAL_HAVE_RISCV_RVV
+#error ABSL_INTERNAL_HAVE_RISCV_RVV cannot be directly set
+#elif defined(__riscv_vector)
+#define ABSL_INTERNAL_HAVE_RISCV_RVV 1
+#endif
+
 // ABSL_HAVE_CONSTANT_EVALUATED is used for compile-time detection of
 // constant evaluation support through `absl::is_constant_evaluated`.
 #ifdef ABSL_HAVE_CONSTANT_EVALUATED
