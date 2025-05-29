@@ -455,65 +455,58 @@ struct GroupRvvImpl {
   }
 
   BitMaskType Match(h2_t hash) const {
-    size_t vl = __riscv_vsetvl_e8m1(kWidth);
-    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), vl);
-    vuint8m1_t v_hash_broadcast = __riscv_vmv_v_x_u8m1(static_cast<uint8_t>(hash), vl);
-    vbool8_t match_predicate = __riscv_vmseq_vv_u8m1_b8(ctrl, v_hash_broadcast, vl);
+    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), 16);
+    vuint8m1_t v_hash_broadcast = __riscv_vmv_v_x_u8m1(static_cast<uint8_t>(hash), 16);
+    vbool8_t match_predicate = __riscv_vmseq_vv_u8m1_b8(ctrl, v_hash_broadcast, 16);
     return BitMaskType(ExtractMaskFromPredicate(match_predicate));
   }
 
   NonIterableBitMaskType MaskEmpty() const {
-    size_t vl = __riscv_vsetvl_e8m1(kWidth);
-    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), vl);
-    vuint8m1_t v_empty_val = __riscv_vmv_v_x_u8m1(static_cast<uint8_t>(ctrl_t::kEmpty), vl);
-    vbool8_t empty_predicate = __riscv_vmseq_vv_u8m1_b8(ctrl, v_empty_val, vl);
+    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), 16);
+    vuint8m1_t v_empty_val = __riscv_vmv_v_x_u8m1(static_cast<uint8_t>(ctrl_t::kEmpty), 16);
+    vbool8_t empty_predicate = __riscv_vmseq_vv_u8m1_b8(ctrl, v_empty_val, 16);
     return NonIterableBitMaskType(ExtractMaskFromPredicate(empty_predicate));
   }
 
   BitMaskType MaskFull() const {
-    size_t vl = __riscv_vsetvl_e8m1(kWidth);
-    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), vl);
+    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), 16);
     vint8m1_t v_ctrl_signed = __riscv_vreinterpret_v_u8m1_i8m1(ctrl);
-    vbool8_t msb_is_1_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, 0, vl);
+    vbool8_t msb_is_1_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, 0, 16);
     uint16_t msb_is_1_mask = ExtractMaskFromPredicate(msb_is_1_predicate);
     return BitMaskType(msb_is_1_mask ^ 0xFFFF);
   }
 
   BitMaskType MaskNonFull() const {
-    size_t vl = __riscv_vsetvl_e8m1(kWidth);
-    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), vl);
+    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), 16);
     vint8m1_t v_ctrl_signed = __riscv_vreinterpret_v_u8m1_i8m1(ctrl);
-    vbool8_t msb_is_1_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, 0, vl);
+    vbool8_t msb_is_1_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, 0, 16);
     return BitMaskType(ExtractMaskFromPredicate(msb_is_1_predicate));
   }
 
   NonIterableBitMaskType MaskEmptyOrDeleted() const {
-    size_t vl = __riscv_vsetvl_e8m1(kWidth);
-    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), vl);
+    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), 16);
     vint8m1_t v_ctrl_signed = __riscv_vreinterpret_v_u8m1_i8m1(ctrl);
-    vbool8_t e_or_d_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, static_cast<int8_t>(ctrl_t::kSentinel), vl);
+    vbool8_t e_or_d_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, static_cast<int8_t>(ctrl_t::kSentinel), 16);
     return NonIterableBitMaskType(ExtractMaskFromPredicate(e_or_d_predicate));
   }
 
   uint32_t CountLeadingEmptyOrDeleted() const {
-    size_t vl = __riscv_vsetvl_e8m1(kWidth);
-    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), vl);
+    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), 16);
     vint8m1_t v_ctrl_signed = __riscv_vreinterpret_v_u8m1_i8m1(ctrl);
-    vbool8_t e_or_d_predicate = __riscv_vmsge_vx_i8m1_b8(v_ctrl_signed, static_cast<int8_t>(ctrl_t::kSentinel), vl);
+    vbool8_t e_or_d_predicate = __riscv_vmsge_vx_i8m1_b8(v_ctrl_signed, static_cast<int8_t>(ctrl_t::kSentinel), 16);
     // e_or_d_predicate has bit `i` set if ctrl[i] is Empty or Deleted.
     uint16_t mask_val = ExtractMaskFromPredicate(e_or_d_predicate);
     return static_cast<uint32_t>(countr_zero(mask_val));
   }
 
   void ConvertSpecialToEmptyAndFullToDeleted(ctrl_t* dst) const {
-    size_t vl = __riscv_vsetvl_e8m1(kWidth);
-    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), vl);
+    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), 16);
     vint8m1_t v_ctrl_signed = __riscv_vreinterpret_v_u8m1_i8m1(ctrl);
-    vbool8_t special_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, 0, vl); // True if ctrl < 0
-    vuint8m1_t v_msbs = __riscv_vmv_v_x_u8m1(0x80, vl);
-    vuint8m1_t v_x126 = __riscv_vmv_v_x_u8m1(0xFE, vl);
-    vuint8m1_t res = __riscv_vmerge_vvm_u8m1(v_x126, v_msbs, special_predicate, vl);
-    __riscv_vse8_v_u8m1(reinterpret_cast<uint8_t*>(dst), res, vl);
+    vbool8_t special_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, 0, 16); // True if ctrl < 0
+    vuint8m1_t v_msbs = __riscv_vmv_v_x_u8m1(0x80, 16);
+    vuint8m1_t v_x126 = __riscv_vmv_v_x_u8m1(0xFE, 16);
+    vuint8m1_t res = __riscv_vmerge_vvm_u8m1(v_x126, v_msbs, special_predicate, 16);
+    __riscv_vse8_v_u8m1(reinterpret_cast<uint8_t*>(dst), res, 16);
   }
 
  private:

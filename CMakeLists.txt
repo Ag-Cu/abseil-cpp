@@ -100,7 +100,9 @@ find_package(Threads REQUIRED)
 include(CMakeDependentOption)
 
 option(ABSL_BUILD_TESTING
-  "If ON, Abseil will build all of Abseil's own tests." OFF)
+  "If ON, Abseil will build all of Abseil's own tests." ON)
+
+option(ABSL_BUILD_BENCHMARKS "Build Abseil benchmarks" ON)
 
 option(ABSL_BUILD_TEST_HELPERS
   "If ON, Abseil will build libraries that you can use to write tests against Abseil code. This option requires that Abseil is configured to use GoogleTest."
@@ -167,6 +169,20 @@ if((BUILD_TESTING AND ABSL_BUILD_TESTING) OR ABSL_BUILD_TEST_HELPERS)
   endif()
 endif()
 
+if(ABSL_BUILD_BENCHMARKS)
+  find_package(benchmark CONFIG REQUIRED)
+  if (TARGET benchmark::benchmark_main OR TARGET benchmark::benchmark)
+    message(STATUS "Found Google Benchmark with target 'benchmark::benchmark_main' or 'benchmark::benchmark'.")
+  else()
+    message(WARNING "Google Benchmark package was found, but the expected CMake targets "
+                    "(benchmark::benchmark_main or benchmark::benchmark) are not available. "
+                    "Please check your Google Benchmark installation and its CMake configuration files. "
+                    "Benchmarks may fail to link.")
+  endif()
+  message(STATUS "Google Benchmark support enabled. Benchmarks will be built if defined.")
+else()
+  message(STATUS "Google Benchmark support disabled (ABSL_BUILD_BENCHMARKS is OFF).")
+endif() # ABSL_BUILD_BENCHMARKS
 add_subdirectory(absl)
 
 if(ABSL_ENABLE_INSTALL)
