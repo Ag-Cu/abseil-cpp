@@ -458,3 +458,85 @@ function(absl_cc_test)
 
   add_test(NAME ${_NAME} COMMAND ${_NAME})
 endfunction()
+
+function(absl_cc_benchmark)
+  # Benchmarks are typically built alongside tests, or with a dedicated flag.
+  # We use ABSL_BUILD_BENCHMARKS, and also respect BUILD_TESTING
+  # as benchmarks are often run as part of the testing suite.
+  if(NOT (BUILD_TESTING AND ABSL_BUILD_BENCHMARKS))
+    return()
+  endif()
+
+  cmake_parse_arguments(ABSL_CC_BENCHMARK
+    ""  # No single-value keyword arguments unique to benchmark yet
+    "NAME"
+    "SRCS;COPTS;DEFINES;LINKOPTS;DEPS"
+    ${ARGN}
+  )
+
+  set(_NAME "absl_${ABSL_CC_BENCHMARK_NAME}")
+
+  add_executable(${_NAME} "")
+  target_sources(${_NAME} PRIVATE ${ABSL_CC_BENCHMARK_SRCS})
+
+  # Include Abseil's common include directories.
+  # Google Benchmark includes should come via target_link_libraries from its own target.
+  target_include_directories(${_NAME}
+    PUBLIC ${ABSL_COMMON_INCLUDE_DIRS}
+  )
+
+  if (${ABSL_BUILD_DLL})
+    target_compile_definitions(${_NAME}
+      PUBLIC
+        ${ABSL_CC_BENCHMARK_DEFINES}
+        ABSL_CONSUME_DLL
+        # ABSL_CONSUME_TEST_DLL # Decide if benchmarks need to consume the test DLL.
+                                # If benchmarks share utilities with tests that are in abseil_test_dll,
+                                # then this define might be necessary. Otherwise, it can be removed.
+                                # For now, let's assume it might be needed if test helpers are used.
+        ABSL_CONSUME_TEST_DLL
+        # No GTEST_LINKED_AS_SHARED_LIBRARY=1 for benchmarks unless they specifically use GTest
+    )
+
+    # Replace dependencies on targets inside the DLL with abseil_dll itself.
+    absl_internal_dll_targets(
+      DEPS ${ABSL_CC_BENCHMARK_DEPS}
+      OUTPUT _ABSL_CC_BENCHMARK_DEPS_PROCESSED # Use a different variable name to avoid issues
+    )
+    absl_internal_dll_targets(
+      DEPS ${ABSL_CC_BENCHMARK_LINKOPTS}
+      OUTPUT _ABSL_CC_BENCHMARK_LINKOPTS_PROCESSED # Use a different variable name
+    )
+    set(ABSL_CC_BENCHMARK_DEPS ${_ABSL_CC_BENCHMARK_DEPS_PROCESSED})
+    set(ABSL_CC_BENCHMARK_LINKOPTS ${_ABSL_CC_BENCHMARK_LINKOPTS_PROCESSED})
+  else()
+    target_compile_definitions(${_NAME}
+      PUBLIC
+        ${ABSL_CC_BENCHMARK_DEFINES}
+    )
+  endif()
+
+  target_compile_options(${_NAME}
+    PRIVATE ${ABSL_CC_BENCHMARK_COPTS}
+  )
+
+  target_link_libraries(${_NAME}
+    PUBLIC ${ABSL_CC_BENCHMARK_DEPS}
+    PRIVATE ${ABSL_CC_BENCHMARK_LINKOPTS}
+  )
+
+  # Add benchmark targets to a 'benchmark' folder in the IDE for organization.
+  set_property(TARGET ${_NAME} PROPERTY FOLDER ${ABSL_IDE_FOLDER}/benchmark)
+
+  if(ABSL_PROPAGATE_CXX_STD)
+    # Abseil libraries and therefore benchmarks depending on them require C++17
+    # or a newer standard if set globally.
+    target_compile_features(${_NAME} PUBLIC ${ABSL_INTERNAL_CXX_STD_FEATURE})
+  endif()
+
+  # Add the benchmark to CTest.
+  # This allows benchmarks to be run via 'ctest'.
+  # The actual benchmark results will be printed to stdout/stderr.
+  add_test(NAME ${_NAME} COMMAND ${_NAME})
+
+endfunction()

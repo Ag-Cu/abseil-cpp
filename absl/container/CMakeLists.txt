@@ -1087,3 +1087,19 @@ absl_cc_test(
     absl::hashtablez_sampler
     GTest::gmock_main
 )
+
+absl_cc_benchmark(
+  NAME
+    raw_hash_set_benchmark
+  SRCS
+    "internal/raw_hash_set_benchmark.cc"
+  DEPS
+    benchmark::benchmark_main
+    absl::flat_hash_map
+    absl::flat_hash_set
+    absl::node_hash_map
+    absl::node_hash_set
+    absl::random_random
+    absl::raw_hash_set
+    absl::strings
+)
