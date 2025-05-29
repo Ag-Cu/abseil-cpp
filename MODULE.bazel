@@ -41,3 +41,8 @@ bazel_dep(
     name = "googletest",
     version = "1.17.0",
 )
+
+# Register your RISC-V toolchain definition directly
+register_toolchains(
+    "//toolchains/riscv_linux_toolchain:riscv_linux_toolchain_definition"
+)
