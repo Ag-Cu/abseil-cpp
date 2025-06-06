@@ -219,7 +219,7 @@ void CacheInSteadyStateArgs(Benchmark* bm) {
     bm->Arg(std::ceil(
         capacity * (max_load_factor + i * max_load_factor / kNumPoints) / 2));
 }
-BENCHMARK(BM_CacheInSteadyState)->Apply(CacheInSteadyStateArgs);
+// BENCHMARK(BM_CacheInSteadyState)->Apply(CacheInSteadyStateArgs);
 
 void BM_EraseEmplace(benchmark::State& state) {
   IntTable t;
@@ -235,7 +235,7 @@ void BM_EraseEmplace(benchmark::State& state) {
     }
   }
 }
-BENCHMARK(BM_EraseEmplace)->Arg(1)->Arg(2)->Arg(4)->Arg(8)->Arg(16)->Arg(100);
+// BENCHMARK(BM_EraseEmplace)->Arg(1)->Arg(2)->Arg(4)->Arg(8)->Arg(16)->Arg(100);
 
 void BM_EndComparison(benchmark::State& state) {
   StringTable t = {{"a", "a"}, {"b", "b"}};
@@ -246,7 +246,7 @@ void BM_EndComparison(benchmark::State& state) {
     benchmark::DoNotOptimize(it != t.end());
   }
 }
-BENCHMARK(BM_EndComparison);
+//BENCHMARK(BM_EndComparison);
 
 void BM_Iteration(benchmark::State& state) {
   absl::InsecureBitGen rng;
@@ -269,7 +269,7 @@ void BM_Iteration(benchmark::State& state) {
   }
 }
 
-BENCHMARK(BM_Iteration)
+/* BENCHMARK(BM_Iteration)
     ->ArgPair(1, 1)
     ->ArgPair(2, 2)
     ->ArgPair(4, 4)
@@ -289,7 +289,7 @@ BENCHMARK(BM_Iteration)
     // sparse
     ->ArgPair(100, 1)
     ->ArgPair(1000, 10);
-
+*/
 void BM_CopyCtorSparseInt(benchmark::State& state) {
   absl::InsecureBitGen rng;
   IntTable t;
@@ -306,7 +306,7 @@ void BM_CopyCtorSparseInt(benchmark::State& state) {
     benchmark::DoNotOptimize(t2);
   }
 }
-BENCHMARK(BM_CopyCtorSparseInt)->Range(1, 4096);
+// BENCHMARK(BM_CopyCtorSparseInt)->Range(1, 4096);
 
 void BM_CopyCtorInt(benchmark::State& state) {
   absl::InsecureBitGen rng;
@@ -323,7 +323,7 @@ void BM_CopyCtorInt(benchmark::State& state) {
     benchmark::DoNotOptimize(t2);
   }
 }
-BENCHMARK(BM_CopyCtorInt)->Range(0, 4096);
+// BENCHMARK(BM_CopyCtorInt)->Range(0, 4096);
 
 void BM_CopyCtorString(benchmark::State& state) {
   absl::InsecureBitGen rng;
@@ -340,7 +340,7 @@ void BM_CopyCtorString(benchmark::State& state) {
     benchmark::DoNotOptimize(t2);
   }
 }
-BENCHMARK(BM_CopyCtorString)->Range(0, 4096);
+// BENCHMARK(BM_CopyCtorString)->Range(0, 4096);
 
 void BM_CopyAssign(benchmark::State& state) {
   absl::InsecureBitGen rng;
@@ -356,7 +356,7 @@ void BM_CopyAssign(benchmark::State& state) {
     benchmark::DoNotOptimize(t2);
   }
 }
-BENCHMARK(BM_CopyAssign)->Range(128, 4096);
+// BENCHMARK(BM_CopyAssign)->Range(128, 4096);
 
 void BM_RangeCtor(benchmark::State& state) {
   absl::InsecureBitGen rng;
@@ -372,7 +372,7 @@ void BM_RangeCtor(benchmark::State& state) {
     benchmark::DoNotOptimize(t);
   }
 }
-BENCHMARK(BM_RangeCtor)->Range(128, 65536);
+// BENCHMARK(BM_RangeCtor)->Range(128, 65536);
 
 void BM_NoOpReserveIntTable(benchmark::State& state) {
   IntTable t;
@@ -382,7 +382,7 @@ void BM_NoOpReserveIntTable(benchmark::State& state) {
     t.reserve(100000);
   }
 }
-BENCHMARK(BM_NoOpReserveIntTable);
+// BENCHMARK(BM_NoOpReserveIntTable);
 
 void BM_NoOpReserveStringTable(benchmark::State& state) {
   StringTable t;
@@ -392,7 +392,7 @@ void BM_NoOpReserveStringTable(benchmark::State& state) {
     t.reserve(100000);
   }
 }
-BENCHMARK(BM_NoOpReserveStringTable);
+// BENCHMARK(BM_NoOpReserveStringTable);
 
 void BM_ReserveIntTable(benchmark::State& state) {
   constexpr size_t kBatchSize = 1024;
@@ -411,7 +411,7 @@ void BM_ReserveIntTable(benchmark::State& state) {
     }
   }
 }
-BENCHMARK(BM_ReserveIntTable)
+/* BENCHMARK(BM_ReserveIntTable)
     ->Arg(1)
     ->Arg(2)
     ->Arg(4)
@@ -422,7 +422,7 @@ BENCHMARK(BM_ReserveIntTable)
     ->Arg(128)
     ->Arg(256)
     ->Arg(512);
-
+*/
 void BM_ReserveStringTable(benchmark::State& state) {
   constexpr size_t kBatchSize = 1024;
   size_t reserve_size = static_cast<size_t>(state.range(0));
@@ -440,7 +440,7 @@ void BM_ReserveStringTable(benchmark::State& state) {
     }
   }
 }
-BENCHMARK(BM_ReserveStringTable)
+/*BENCHMARK(BM_ReserveStringTable)
     ->Arg(1)
     ->Arg(2)
     ->Arg(4)
@@ -451,7 +451,7 @@ BENCHMARK(BM_ReserveStringTable)
     ->Arg(128)
     ->Arg(256)
     ->Arg(512);
-
+*/
 // Like std::iota, except that ctrl_t doesn't support operator++.
 template <typename CtrlIter>
 void Iota(CtrlIter begin, CtrlIter end, int value) {
@@ -571,7 +571,7 @@ void BM_DropDeletes(benchmark::State& state) {
     ::benchmark::DoNotOptimize(ctrl_copy[capacity]);
   }
 }
-BENCHMARK(BM_DropDeletes);
+//BENCHMARK(BM_DropDeletes);
 
 void BM_Resize(benchmark::State& state) {
   // For now just measure a small cheap hash table since we
@@ -589,7 +589,7 @@ void BM_Resize(benchmark::State& state) {
     table.rehash(kCapacity);
   }
 }
-BENCHMARK(BM_Resize);
+// BENCHMARK(BM_Resize);
 
 void BM_EraseIf(benchmark::State& state) {
   int64_t num_elements = state.range(0);
@@ -643,7 +643,7 @@ void BM_EraseIf(benchmark::State& state) {
   }
 }
 
-BENCHMARK(BM_EraseIf)
+/*BENCHMARK(BM_EraseIf)
     ->ArgNames({"num_elements", "num_erased"})
     ->ArgPair(10, 0)
     ->ArgPair(1000, 0)
@@ -651,7 +651,7 @@ BENCHMARK(BM_EraseIf)
     ->ArgPair(1000, 500)
     ->ArgPair(10, 10)
     ->ArgPair(1000, 1000);
-
+*/
 }  // namespace
 }  // namespace container_internal
 ABSL_NAMESPACE_END

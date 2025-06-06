@@ -469,9 +469,10 @@ struct GroupRvvImpl {
   }
 
   BitMaskType MaskFull() const {
-    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), 16);
+    size_t vl = __riscv_vsetvl_e8m1(kWidth);
+    auto ctrl = __riscv_vle8_v_u8m1(reinterpret_cast<const uint8_t*>(ctrl_), vl);
     vint8m1_t v_ctrl_signed = __riscv_vreinterpret_v_u8m1_i8m1(ctrl);
-    vbool8_t msb_is_1_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, 0, 16);
+    vbool8_t msb_is_1_predicate = __riscv_vmslt_vx_i8m1_b8(v_ctrl_signed, 0, vl);
     uint16_t msb_is_1_mask = ExtractMaskFromPredicate(msb_is_1_predicate);
     return BitMaskType(msb_is_1_mask ^ 0xFFFF);
   }
